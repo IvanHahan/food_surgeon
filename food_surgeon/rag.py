@@ -28,6 +28,11 @@ def create_rag_database(
     return vectorstore
 
 
+def get_db(index_name="dishes"):
+    embeddings = PineconeEmbeddings()
+    return Pinecone.from_existing_index(index_name=index_name, embedding=embeddings)
+
+
 if __name__ == "__main__":
     from dotenv import load_dotenv
 
