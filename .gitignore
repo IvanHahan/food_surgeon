@@ -52,3 +52,4 @@ Thumbs.db
 .vscode
 weights/
 food-surgeon-firebase-adminsdk-fbsvc-e231f8375d.json
+.creds/
