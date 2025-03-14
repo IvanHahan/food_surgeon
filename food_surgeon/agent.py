@@ -1,10 +1,9 @@
 
 from dotenv import load_dotenv
 from langchain.agents import AgentType, initialize_agent, tool
-from langchain.chains import RetrievalQA
 from langchain_together import ChatTogether
 
-from food_surgeon.rag import get_db
+from food_surgeon.rag import get_firebase_db, get_vector_db
 
 load_dotenv(".env")
 
@@ -12,14 +11,16 @@ llm = ChatTogether(
     model="meta-llama/Llama-3.3-70B-Instruct-Turbo",
 )
 
-db = get_db('dishes')
-retriever = db.as_retriever()
-qa_rag = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
+vector_db = get_vector_db('dishes')
 
 @tool
 def search_db(query: str) -> str:
     """Search the database for a query."""
-    return qa_rag.run(query)
+    doc = vector_db.similarity_search(query, k=1)[0]
+    id_ = doc.metadata['id']
+    # Assuming you have a Firebase client initialized as `firebase_db`
+    item = get_firebase_db('dishes').child(id_).get()
+    return item
 
 
 # Define any tools you want the agent to use
@@ -36,7 +37,9 @@ agent = initialize_agent(
 def run_agent(prompt: str) -> str:
     return agent.run(prompt)
 
+
 if __name__ == "__main__":
     # Initialize RAG
-    res = db.similarity_search('Cирники', k=1)
+    res = run_agent("дай рецепт сирників")
+
     print(res)

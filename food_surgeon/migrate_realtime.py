@@ -33,7 +33,7 @@ def migrate_realtime_data(
         if isinstance(data, dict):
             new_data = {}
             for key, value in data.items():
-                if key in ["description", "ingredients"] and isinstance(value, str) and not value.startswith("https://"):
+                if key in ["description", "ingredients", "name"] and isinstance(value, str) and not value.startswith("https://"):
                     new_data[key] = translator.translate(value, src='ru', dest='uk').text
                 else:
                     new_data[key] = translate_data(value)

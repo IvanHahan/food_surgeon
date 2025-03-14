@@ -2,18 +2,14 @@ import os
 
 import firebase_admin
 from firebase_admin import credentials, db
+from langchain.schema import Document
 from langchain.vectorstores import Pinecone
 
 from food_surgeon.config import FIREBASE_URL
 from food_surgeon.pinecone_embeddings import PineconeEmbeddings
 
-
-def fetch_dishes_from_firebase(credential_path, db_url, path):
-    # Initialize Firebase app
-    cred = credentials.Certificate(credential_path)
-    firebase_admin.initialize_app(cred, {"databaseURL": db_url})
-    ref = db.reference(path)
-    return ref.get()
+cred = credentials.Certificate(".creds/ivan_firebase.json")
+firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_URL})
 
 
 def create_rag_database(
@@ -22,15 +18,23 @@ def create_rag_database(
     index_name="dishes",
 ):
     embeddings = PineconeEmbeddings()
-    vectorstore = Pinecone.from_texts(
-        documents, embeddings, ids=document_ids, index_name=index_name
+    document_objs = [
+        Document(page_content=d, metadata={"id": i})
+        for d, i in zip(documents, document_ids)
+    ]
+    vectorstore = Pinecone.from_documents(
+        document_objs, embeddings, index_name=index_name
     )
     return vectorstore
 
 
-def get_db(index_name="dishes"):
+def get_vector_db(index_name="dishes"):
     embeddings = PineconeEmbeddings()
     return Pinecone.from_existing_index(index_name=index_name, embedding=embeddings)
+
+
+def get_firebase_db(collection='dishes'):
+    return db.reference(collection)
 
 
 if __name__ == "__main__":
@@ -40,14 +44,13 @@ if __name__ == "__main__":
 
     # Fetch dishes from Firebase
     collection = "dishes"
-    dishes = fetch_dishes_from_firebase(
-        ".creds/ivan_firebase.json", FIREBASE_URL, collection
-    )
+    dishes = get_firebase_db(collection).get()
 
     # Extract descriptions for RAG database
     documents = [
         dish["name"]
-        + "\Інгредієнти:\n"
+        + f"\nТип:{dish.get('type')}\n"
+        + "\nІнгредієнти:\n"
         + dish["ingredients"]
         + "\nОпис:\n"
         + dish["description"]
