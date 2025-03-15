@@ -8,8 +8,9 @@ from langchain.vectorstores import Pinecone
 from food_surgeon.config import FIREBASE_URL
 from food_surgeon.pinecone_embeddings import PineconeEmbeddings
 
-cred = credentials.Certificate(".creds/ivan_firebase.json")
-firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_URL})
+if not firebase_admin._apps:
+    cred = credentials.Certificate(".creds/ivan_firebase.json")
+    firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_URL})
 
 
 def create_rag_database(

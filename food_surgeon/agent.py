@@ -1,4 +1,3 @@
-
 from dotenv import load_dotenv
 from langchain.agents import AgentType, initialize_agent, tool
 from langchain_together import ChatTogether
@@ -13,7 +12,7 @@ llm = ChatTogether(
 
 vector_db = get_vector_db('dishes')
 
-@tool
+@tool(return_direct=True)
 def search_db(query: str) -> str:
     """Search the database for a query."""
     doc = vector_db.similarity_search(query, k=1)[0]
