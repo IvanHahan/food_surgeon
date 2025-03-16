@@ -1,71 +1,70 @@
-import os
+from dotenv import load_dotenv
+from langchain import hub
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.output_parsers import PydanticToolsParser
+from langchain.schema.runnable import RunnablePassthrough
+from langchain_core.tools import create_retriever_tool
+from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
-import firebase_admin
-from firebase_admin import credentials, db
-from langchain.schema import Document
-from langchain.vectorstores import Pinecone
+from food_surgeon.db import get_vector_db
 
-from food_surgeon.config import FIREBASE_URL
-from food_surgeon.pinecone_embeddings import PineconeEmbeddings
-
-if not firebase_admin._apps:
-    cred = credentials.Certificate(".creds/ivan_firebase.json")
-    firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_URL})
+load_dotenv(".env")
 
 
-def create_rag_database(
-    documents,
-    document_ids,
-    index_name="dishes",
-):
-    embeddings = PineconeEmbeddings()
-    document_objs = [
-        Document(page_content=d, metadata={"id": i})
-        for d, i in zip(documents, document_ids)
-    ]
-    vectorstore = Pinecone.from_documents(
-        document_objs, embeddings, index_name=index_name
+class Dish(BaseModel):
+    """Always use this tool to structure your response to the user."""
+
+    id: str = Field(description="The id of the dish.")
+    name: str = Field(description="The name of the dish.")
+    type: str = Field(description="The type of the dish.")
+    ingredients: str = Field(description="The ingredients of the dish.")
+    description: str = Field(
+        description="The description of the dish or steps to prepare"
     )
-    return vectorstore
+    comments: str = Field(description="The models's comments on the dish.")
 
+def format_docs(docs):
+    return "\n\n".join(
+        [f"id: {doc.metadata['id']}\n" + doc.page_content for doc in docs]
+    )
 
-def get_vector_db(index_name="dishes"):
-    embeddings = PineconeEmbeddings()
-    return Pinecone.from_existing_index(index_name=index_name, embedding=embeddings)
+def build_recipe_rag():
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",
+    )
 
+    dish_retriever = get_vector_db("dishes").as_retriever()
 
-def get_firebase_db(collection='dishes'):
-    return db.reference(collection)
+    retriever_tool = create_retriever_tool(
+        dish_retriever,
+        "recipe-seeker",
+        "Use to search recipe in database",
+    )
 
+    prompt = hub.pull("langchain-ai/retrieval-qa-chat")
+    parser = PydanticToolsParser(tools=[Dish])
+
+    chain = (
+
+        {   
+            "input": lambda x: x["input"],
+            "context": (lambda x: x["input"]) | dish_retriever | format_docs,
+        }
+        | prompt
+        | llm.bind_tools([Dish])
+        | parser
+    )
+    return chain
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-
-    load_dotenv(".env")
-
-    # Fetch dishes from Firebase
-    collection = "dishes"
-    dishes = get_firebase_db(collection).get()
-
-    # Extract descriptions for RAG database
-    documents = [
-        dish["name"]
-        + f"\nТип:{dish.get('type')}\n"
-        + "\nІнгредієнти:\n"
-        + dish["ingredients"]
-        + "\nОпис:\n"
-        + dish["description"]
-        for dish in dishes.values()
-    ]
-
-    document_ids = list(dishes.keys())
-
-    # Create RAG database
-    pinecone_api_key = os.getenv("PINECONE_API_KEY", "YOUR_PINECONE_API_KEY")
-    pinecone_env = os.getenv("PINECONE_ENV", "YOUR_PINECONE_ENV")
-    store = create_rag_database(documents, document_ids, collection)
-
-    # Example query
-    results = store.similarity_search("What are some dishes?", k=3)
-    for res in results:
-        print(res.page_content)
+    # Initialize RAG
+    # res = run_agent(
+    #     [
+    #         {"role": "user", "content": "дай рецепт борщу"},
+    #     ]
+    # )
+    res = chain.invoke(input={"input": "дай рецепт борщу"})
+    # ("дай рецепт сирників")
+    # print(dish_rag.invoke('борщ', k=))
+    print(res)
