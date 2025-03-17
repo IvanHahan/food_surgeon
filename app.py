@@ -78,14 +78,19 @@ if prompt := (st.chat_input("Що хочеш приготувати?")):
         dishes = st.session_state.rag.invoke(
             {
                 "input": st.session_state.messages[-1]["content"],
+
+                # optionally enable chat history. but works slowly
                 # "chat_hisory": st.session_state.messages,
             }
         )
-    if isinstance(dishes, list):
+    if isinstance(dishes, list) and len(dishes) > 0:
         for dish in dishes:
             dish = dish.model_dump()
-            message = {"role": "assistant", "content": dish.get("comments"), "dish": dish}
             st.session_state.messages.append(
-                message
+                {"role": "assistant", "content": dish.get("comments"), "dish": dish}
             )
-        st.rerun()
+    else:
+        st.session_state.messages.append(
+            {"role": "assistant", "content": "Вибач, не можу знайти рецепт"}
+        )
+    st.rerun()
