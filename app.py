@@ -11,27 +11,25 @@ def display_chat_messages() -> None:
     """Print message history
     @returns None
     """
-    for message in st.session_state.messages:
-        # with st.sidebar:
+    for i, message in enumerate(st.session_state.messages):
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            if "images" in message:
-                for i in range(0, len(message["images"]), NUM_IMAGES_PER_ROW):
-                    cols = st.columns(NUM_IMAGES_PER_ROW)
-                    for j in range(NUM_IMAGES_PER_ROW):
-                        if i + j < len(message["images"]):
-                            cols[j].image(message["images"][i + j], width=200)
+            if message['content']:
+                st.markdown(message["content"])
+            if "dish" in message:
+                dish_widget(message['dish'])
 
 st.title("Food Surgeon")
 
 
 def dish_widget(dish, key=None):
-    with st.container():
-        if st.button(dish['name'], key=key):
-            st.session_state['selected_dish'] = dish
-            st.rerun()
-        if 'src' in dish:
-            st.image(dish['src'], width=200)
+    # with st.container(key=key):
+    with st.expander(dish['name']):
+        st.write(dish['ingredients'])
+        st.write(dish['description'])
+    if 'src' in dish:
+        st.image(dish['src'], width=200)
+    if 'comment' in dish:
+        st.markdown(dish['comment'])
 
 def dish_widget_detailed(dish):
     with st.container():
@@ -67,32 +65,23 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
     st.session_state.greetings = False
 
+if not st.session_state.greetings:
+    intro = "Привіт! Я допоможу тобі з готовкою"
+    # Add assistant response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": intro})
+    st.session_state.greetings = True    
 
 display_chat_messages()
-
-if not st.session_state.greetings:
-    with st.chat_message("assistant"):
-        intro = "Привіт! Я допоможу тобі з готовкою"
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": intro})
-        st.session_state.greetings = True    
-
 
 if prompt := (st.chat_input("Що хочеш приготувати?")):
 # Display user message in chat message container
     with st.chat_message("user"):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
-
-    dishes = recipe_rag.invoke({'input': st.session_state.messages[-1]['content']})
+    with st.spinner('Зачекай, шукаю рецепти...'):
+        dishes = recipe_rag.invoke({'input': st.session_state.messages[-1]['content']})
     if isinstance(dishes, list):
         for dish in dishes:
             dish = dish.model_dump()
-            # image_url = get_firebase_db('dishes').child(dish['id']).get('src')[0]
-            # dish['src'] = image_url['src']
-            dish_widget(dish, key=dish['id'])
-    elif isinstance(dishes, str):
-        with st.chat_message("assistant"):
-            st.markdown(dishes)
- 
-        # dish_widget(response)
+            st.session_state.messages.append({"role": "assistant", "content": dish.get('comments'), 'dish': dish})
+        st.rerun()
