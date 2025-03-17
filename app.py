@@ -1,10 +1,11 @@
 import streamlit as st
 
 from food_surgeon.db import get_firebase_db
-from food_surgeon.rag import run_agent
+from food_surgeon.rag import build_recipe_rag
 
 NUM_IMAGES_PER_ROW = 3
 
+recipe_rag = build_recipe_rag()
 
 def display_chat_messages() -> None:
     """Print message history
@@ -83,9 +84,12 @@ if prompt := (st.chat_input("Що хочеш приготувати?")):
         st.markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    dishes = run_agent(st.session_state.messages)
+    dishes = recipe_rag.invoke({'input': st.session_state.messages[-1]['content']})
     if isinstance(dishes, list):
         for dish in dishes:
+            dish = dish.model_dump()
+            # image_url = get_firebase_db('dishes').child(dish['id']).get('src')[0]
+            # dish['src'] = image_url['src']
             dish_widget(dish, key=dish['id'])
     elif isinstance(dishes, str):
         with st.chat_message("assistant"):
