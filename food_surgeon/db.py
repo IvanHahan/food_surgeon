@@ -4,9 +4,11 @@ import firebase_admin
 from firebase_admin import credentials, db
 from langchain.schema import Document
 from langchain.vectorstores import Pinecone
+from langchain_pinecone import PineconeEmbeddings
 
 from food_surgeon.config import FIREBASE_URL
-from food_surgeon.pinecone_embeddings import PineconeEmbeddings
+
+EMBEDDING_MODEL = "multilingual-e5-large"
 
 if not firebase_admin._apps:
     cred = credentials.Certificate(".creds/ivan_firebase.json")
@@ -18,7 +20,7 @@ def create_rag_database(
     document_ids,
     index_name="dishes",
 ):
-    embeddings = PineconeEmbeddings()
+    embeddings = PineconeEmbeddings(model=EMBEDDING_MODEL)
     document_objs = [
         Document(page_content=d, metadata={"id": i})
         for d, i in zip(documents, document_ids)
@@ -30,7 +32,7 @@ def create_rag_database(
 
 
 def get_vector_db(index_name="dishes"):
-    embeddings = PineconeEmbeddings()
+    embeddings = PineconeEmbeddings(model=EMBEDDING_MODEL)
     return Pinecone.from_existing_index(index_name=index_name, embedding=embeddings)
 
 
