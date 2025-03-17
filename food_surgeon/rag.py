@@ -1,9 +1,7 @@
+
 from dotenv import load_dotenv
 from langchain import hub
-from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.output_parsers import PydanticToolsParser
-from langchain.schema.runnable import RunnablePassthrough
-from langchain_core.tools import create_retriever_tool
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
@@ -14,15 +12,16 @@ load_dotenv(".env")
 
 class Dish(BaseModel):
     """Always use this tool to structure your response to the user."""
-
-    id: str = Field(description="The id of the dish.")
-    name: str = Field(description="The name of the dish.")
-    type: str = Field(description="The type of the dish.")
-    ingredients: str = Field(description="The ingredients of the dish.")
+    id: str = Field(description="Identifier of the dish from the retrieved data.")
+    name: str = Field(description="Name of the dish refined and translated to ukrainian.")
+    type: str = Field(description="Type of the dish refined and translated to ukrainian.")
+    ingredients: str = Field(description="Ingredients of the dish from the retrieved data.")
     description: str = Field(
-        description="The description of the dish or steps to prepare"
+        description="Steps to prepare the dish from the retrieved data. You must always rephrase and enrich it yourself"
     )
-    comments: str = Field(description="The models's comments on the dish.")
+    comments: str = Field(
+        description="You must always add your personal thoughts on recipe here."
+    )
 
 def format_docs(docs):
     return "\n\n".join(
@@ -34,14 +33,9 @@ def build_recipe_rag():
         model_name="gpt-3.5-turbo",
     )
 
-    dish_retriever = get_vector_db("dishes").as_retriever()
+    dish_retriever = get_vector_db("dishes").as_retriever(search_kwargs={"k": 4})
 
-    retriever_tool = create_retriever_tool(
-        dish_retriever,
-        "recipe-seeker",
-        "Use to search recipe in database",
-    )
-
+    
     prompt = hub.pull("langchain-ai/retrieval-qa-chat")
     parser = PydanticToolsParser(tools=[Dish])
 
@@ -58,13 +52,6 @@ def build_recipe_rag():
     return chain
 
 if __name__ == "__main__":
-    # Initialize RAG
-    # res = run_agent(
-    #     [
-    #         {"role": "user", "content": "дай рецепт борщу"},
-    #     ]
-    # )
-    res = chain.invoke(input={"input": "дай рецепт борщу"})
-    # ("дай рецепт сирників")
-    # print(dish_rag.invoke('борщ', k=))
+    rag_chain = build_recipe_rag()
+    res = rag_chain.invoke(input={"input": "дай рецепт млинців"})
     print(res)
