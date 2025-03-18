@@ -1,3 +1,4 @@
+import json
 import os
 
 import firebase_admin
@@ -11,7 +12,8 @@ from food_surgeon.config import FIREBASE_URL
 EMBEDDING_MODEL = "multilingual-e5-large"
 
 if not firebase_admin._apps:
-    cred = credentials.Certificate(".creds/ivan_firebase.json")
+    creds = json.loads(os.environ.get('FIREBASE_CREDENTIALS'))
+    cred = credentials.Certificate(creds)
     firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_URL})
 
 
