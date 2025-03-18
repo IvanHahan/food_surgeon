@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 
@@ -12,7 +13,7 @@ from food_surgeon.config import FIREBASE_URL
 EMBEDDING_MODEL = "multilingual-e5-large"
 
 if not firebase_admin._apps:
-    creds = json.loads(os.environ.get('FIREBASE_CREDENTIALS'))
+    creds = json.loads(base64.b64decode(os.environ["FIREBASE_CREDENTIALS"]).decode())
     cred = credentials.Certificate(creds)
     firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_URL})
 
@@ -45,6 +46,7 @@ def get_firebase_db(collection='dishes'):
 if __name__ == "__main__":
     from dotenv import load_dotenv
 
+
     load_dotenv(".env")
 
     # Fetch dishes from Firebase
@@ -73,3 +75,4 @@ if __name__ == "__main__":
     results = store.similarity_search("What are some dishes?", k=3)
     for res in results:
         print(res.page_content)
+
