@@ -4,3 +4,4 @@ langchain_pinecone
 googletrans
 firebase_admin
 streamlit
+langgraph
