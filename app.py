@@ -1,9 +1,11 @@
 
+import uuid
+
 import streamlit as st
 from dotenv import load_dotenv
 
 from food_surgeon.db import get_firebase_db
-from food_surgeon.rag import build_recipe_rag
+from food_surgeon.rag import build_recipe_agent
 
 NUM_IMAGES_PER_ROW = 3
 
@@ -12,13 +14,15 @@ load_dotenv()
 def initialize_session_state():
     """Initialize session state variables if they are not already set."""
     if "rag" not in st.session_state:
-        st.session_state.rag = build_recipe_rag()
+        st.session_state.rag = build_recipe_agent()
     if "total_dishes" not in st.session_state:
         dishes = get_firebase_db("dishes").get()
         st.session_state.total_dishes = dishes
     if "messages" not in st.session_state:
         st.session_state.messages = []
         st.session_state.greetings = False
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = str(uuid.uuid4())
 
 def display_chat_messages() -> None:
     """Display chat messages from the session state."""
@@ -48,7 +52,7 @@ def display_dishes_by_type():
     types = set(
         [dish["type"] for dish in st.session_state.total_dishes.values() if "type" in dish]
     )
-    tab_titles = list(types)
+    tab_titles = sorted(list(types))
     tabs = st.tabs(tab_titles)
     for tab, dish_type in zip(tabs, tab_titles):
         with tab:
@@ -76,23 +80,24 @@ def handle_user_input():
             st.markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.spinner("Зачекай, шукаю рецепти..."):
-            dishes = st.session_state.rag.invoke(
+            config = {"configurable": {"thread_id": st.session_state.session_id}}
+            response = st.session_state.rag.invoke(
                 {
-                    "input": st.session_state.messages[-1]["content"],
-                    # optionally enable chat history. but works slowly
-                    # "chat_hisory": st.session_state.messages,
-                }
+                    "messages": ("user", st.session_state.messages[-1]["content"]),
+                },
+                config
             )
-        if isinstance(dishes, list) and len(dishes) > 0:
-            for dish in dishes:
+            dish_list = response["structured_response"]
+        if not dish_list.dishes:
+            st.session_state.messages.append(
+                {"role": "assistant", "content": response['messages'][-1].content}
+            )
+        else:
+            for dish in dish_list.dishes:
                 dish = dish.model_dump()
                 st.session_state.messages.append(
                     {"role": "assistant", "content": dish.get("comments"), "dish": dish}
                 )
-        else:
-            st.session_state.messages.append(
-                {"role": "assistant", "content": "Вибач, не можу знайти рецепт"}
-            )
         st.rerun()
 
 # Initialize session state
