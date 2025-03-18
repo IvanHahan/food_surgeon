@@ -5,3 +5,4 @@ googletrans
 firebase_admin
 streamlit
 langgraph
+python-dotenv
