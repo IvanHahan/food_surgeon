@@ -1,4 +1,5 @@
 
+import os
 import uuid
 
 import streamlit as st
@@ -8,7 +9,7 @@ from food_surgeon.agent import build_recipe_agent, parse
 from food_surgeon.db import get_firebase_db
 
 NUM_IMAGES_PER_ROW = 3
-USE_TOGETHERAI = True
+USE_TOGETHERAI = os.environ.get('USE_TOGETHERAI', True)
 
 load_dotenv()
 
