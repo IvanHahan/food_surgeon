@@ -4,17 +4,18 @@ import uuid
 import streamlit as st
 from dotenv import load_dotenv
 
+from food_surgeon.agent import build_recipe_agent, parse
 from food_surgeon.db import get_firebase_db
-from food_surgeon.rag import build_recipe_agent
 
 NUM_IMAGES_PER_ROW = 3
+USE_TOGETHERAI = True
 
 load_dotenv()
 
 def initialize_session_state():
     """Initialize session state variables if they are not already set."""
     if "rag" not in st.session_state:
-        st.session_state.rag = build_recipe_agent()
+        st.session_state.rag = build_recipe_agent(use_togetherai=USE_TOGETHERAI)
     if "total_dishes" not in st.session_state:
         dishes = get_firebase_db("dishes").get()
         st.session_state.total_dishes = dishes
@@ -87,11 +88,23 @@ def handle_user_input():
                 },
                 config
             )
-            dish_list = response["structured_response"]
-        if not dish_list.dishes:
+            if USE_TOGETHERAI:
+                dish_list = parse(response["messages"][-1].content)
+            else:
+                dish_list = response["structured_response"]
+        if not dish_list:
             st.session_state.messages.append(
-                {"role": "assistant", "content": response['messages'][-1].content}
-            )
+                    {"role": "assistant", "content": response["messages"][-1].content}
+                )
+        elif not dish_list.dishes:
+            if USE_TOGETHERAI:
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": "На жаль таку страву я не зміг знайти :("}
+                ) 
+            else:
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": response['messages'][-1].content}
+                )
         else:
             for dish in dish_list.dishes:
                 dish = dish.model_dump()
