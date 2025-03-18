@@ -1,5 +1,5 @@
 from langchain import hub
-from langchain.output_parsers import PydanticToolsParser
+from langchain.chains import create_history_aware_retriever
 from langchain.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from food_surgeon.db import get_vector_db
 
 
+# Define the Dish model to structure the response for a single dish
 class Dish(BaseModel):
     """Always use this tool to structure your response to the user."""
 
@@ -29,27 +30,37 @@ class Dish(BaseModel):
         description="You must always add your personal thoughts on recipe here."
     )
 
-
+# Define the DishList model to structure the response when multiple dishes are retrieved
 class DishList(BaseModel):
     """Always use this tool to structure your response to the user if you have several dishes as output. Put empty list, if no relevant dish found"""
 
     dishes: list[Dish] = Field(description="List of dishes.")
 
-
+# Function to format documents for display
 def format_docs(docs):
     """Format documents for display."""
     return "\n\n".join(
         [f"id: {doc.metadata['id']}\n" + doc.page_content for doc in docs]
     )
 
-
+# Function to build the recipe retrieval-augmented generation (RAG) chain
 def build_recipe_rag():
-    """Build the recipe retrieval-augmented generation (RAG) chain."""
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo")
-    dish_retriever = get_vector_db("dishes").as_retriever(search_kwargs={"k": 4})
-    prompt = hub.pull("langchain-ai/retrieval-qa-chat")
-    parser = PydanticToolsParser(tools=[Dish])
+    llm = ChatOpenAI(
+        model_name="gpt-3.5-turbo",
+    )
 
+    # Retrieve dishes from the vector database
+    dish_retriever = get_vector_db("dishes").as_retriever(search_kwargs={"k": 4})
+
+    # Pull the prompt from the hub
+    prompt = hub.pull("langchain-ai/retrieval-qa-chat")
+
+    # Create a history-aware retriever
+    history_aware_retriever = create_history_aware_retriever(
+        llm=llm, retriever=dish_retriever, prompt=prompt
+    )
+
+    # Define the chain of operations
     chain = (
         {
             "input": lambda x: x["input"],
@@ -60,17 +71,15 @@ def build_recipe_rag():
                     "context": lambda x: x.get("context"),
                 }
             )
-            | dish_retriever
+            | history_aware_retriever
             | format_docs,
         }
         | prompt
-        | llm.bind_tools([Dish])
-        | parser
+        | llm.with_structured_output(DishList)
     )
-
     return chain
 
-
+# Function to format intermediate steps into a string for the ReAct prompt
 def format_agent_scratchpad(intermediate_steps):
     """Format intermediate steps into a string for the ReAct prompt."""
     if not intermediate_steps:
@@ -80,7 +89,7 @@ def format_agent_scratchpad(intermediate_steps):
         scratchpad += f"\nAction: {action.tool}\nInput: {action.tool_input}\nObservation: {observation}\n"
     return scratchpad
 
-
+# Function to build the recipe agent
 def build_recipe_agent():
     """Build the recipe agent."""
     llm = ChatOpenAI(model_name="gpt-3.5-turbo")
@@ -103,22 +112,24 @@ def build_recipe_agent():
         If relevant dish not found in database, say that it's not found and ask user for another dish.
     """
 
+    # Create the ReAct agent executor
     langgraph_agent_executor = create_react_agent(
         llm, tools, prompt=system_message, response_format=DishList, checkpointer=memory
     )
     return langgraph_agent_executor
 
-
+# Main function to run the script
 if __name__ == "__main__":
     from dotenv import load_dotenv
 
     load_dotenv()
 
-    # rag_chain = build_recipe_rag()
-    # query = "дай рецепт млинців"
-    # res = rag_chain.invoke(input={"input": query})
-    # res = rag_chain.invoke(input={"input": "а тепер борщу?", "chat_history": [{"role": "user", "content": query},
-    #                                                                           {"role": "assistant", "content": res[0].comments}]})
+    # Build and invoke the RAG chain
+    rag_chain = build_recipe_rag()
+    res = rag_chain.invoke(input={"input": "дай рецепт млинців"})
+    print(res)
+
+    # Build and invoke the recipe agent
     agent = build_recipe_agent()
     config = {"configurable": {"thread_id": "test-thread"}}
     res = agent.invoke({"messages": [("user", "людина павук")]}, config)
