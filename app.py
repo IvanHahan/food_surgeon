@@ -92,10 +92,19 @@ def handle_user_input():
                 dish_list = parse(response["messages"][-1].content)
             else:
                 dish_list = response["structured_response"]
-        if not dish_list.dishes:
+        if not dish_list:
             st.session_state.messages.append(
-                {"role": "assistant", "content": response['messages'][-1].content}
-            )
+                    {"role": "assistant", "content": response["messages"][-1].content}
+                )
+        elif not dish_list.dishes:
+            if USE_TOGETHERAI:
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": "На жаль таку страву я не зміг знайти :("}
+                ) 
+            else:
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": response['messages'][-1].content}
+                )
         else:
             for dish in dish_list.dishes:
                 dish = dish.model_dump()
