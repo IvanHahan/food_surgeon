@@ -1,10 +1,15 @@
+import json
+import os
+import re
+
 from langchain import hub
 from langchain.chains import create_history_aware_retriever
+from langchain.output_parsers import PydanticOutputParser
 from langchain.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from food_surgeon.db import get_vector_db
 
@@ -90,9 +95,17 @@ def format_agent_scratchpad(intermediate_steps):
     return scratchpad
 
 # Function to build the recipe agent
-def build_recipe_agent():
+def build_recipe_agent(use_togetherai=True):
     """Build the recipe agent."""
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+    if use_togetherai:
+        llm = ChatOpenAI(
+                base_url="https://api.together.xyz/v1",
+                api_key=os.environ["TOGETHER_API_KEY"],
+                model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+            )
+    else:
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+    
     dish_retriever = get_vector_db("dishes").as_retriever(search_kwargs={"k": 4})
     memory = MemorySaver()
 
@@ -107,16 +120,36 @@ def build_recipe_agent():
     tools = [dish_retriever_tool]
 
     system_message = """
-        You are a culinary assistant. Respond only in Ukrainian. 
+        You are a culinary assistant. Respond only in Ukrainian.
+        A user may just write a name of a dish, you must search for it in the database.
         If relevant dish is not found, put the structured response empty.
         If relevant dish not found in database, say that it's not found and ask user for another dish.
     """
 
+    if use_togetherai:
+        system_message += f"if any dish found, {PydanticOutputParser(pydantic_object=DishList).get_format_instructions()}."
+
     # Create the ReAct agent executor
-    langgraph_agent_executor = create_react_agent(
-        llm, tools, prompt=system_message, response_format=DishList, checkpointer=memory
-    )
+    if use_togetherai:
+        langgraph_agent_executor = create_react_agent(
+            llm, tools, prompt=system_message, checkpointer=memory
+        )
+    else:
+        langgraph_agent_executor = create_react_agent(
+            llm, tools, prompt=system_message, checkpointer=memory, response_format=DishList
+        )
     return langgraph_agent_executor
+
+
+def parse(output):
+    match = re.search(r"\{.*\}", output, re.DOTALL)
+    if not match:
+        return None
+    try:
+        return DishList(**json.loads(match.group(0)))
+    except (json.JSONDecodeError, ValidationError):
+        return None
+
 
 # Main function to run the script
 if __name__ == "__main__":
@@ -125,12 +158,13 @@ if __name__ == "__main__":
     load_dotenv()
 
     # Build and invoke the RAG chain
-    rag_chain = build_recipe_rag()
-    res = rag_chain.invoke(input={"input": "дай рецепт млинців"})
-    print(res)
+    # rag_chain = build_recipe_rag()
+    # res = rag_chain.invoke(input={"input": "дай рецепт млинців"})
+    # print(res)
 
     # Build and invoke the recipe agent
     agent = build_recipe_agent()
     config = {"configurable": {"thread_id": "test-thread"}}
-    res = agent.invoke({"messages": [("user", "людина павук")]}, config)
+    res = agent.invoke({"messages": [("user", "знайди рецепт борщу")]}, config)
+    res['structured_response'] = parse(res['messages'][-1].content)
     print(res["structured_response"])
