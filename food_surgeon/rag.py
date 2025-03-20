@@ -3,7 +3,7 @@ from langchain import hub
 from langchain.chains import create_history_aware_retriever
 from langchain_openai import ChatOpenAI
 
-from food_surgeon.data_models import DishList
+from food_surgeon.data_model import DishList
 from food_surgeon.db import get_vector_db
 from food_surgeon.tools import format_docs
 
