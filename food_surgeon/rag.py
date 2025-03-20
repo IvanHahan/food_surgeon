@@ -1,6 +1,4 @@
-
 from langchain import hub
-from langchain.chains import create_history_aware_retriever
 from langchain_openai import ChatOpenAI
 
 from food_surgeon.data_model import DishList
@@ -20,29 +18,18 @@ def build_recipe_rag():
     # Pull the prompt from the hub
     prompt = hub.pull("langchain-ai/retrieval-qa-chat")
 
-    # Create a history-aware retriever
-    history_aware_retriever = create_history_aware_retriever(
-        llm=llm, retriever=dish_retriever, prompt=prompt
-    )
-
     # Define the chain of operations
     chain = (
         {
             "input": lambda x: x["input"],
-            "context": (
-                {
-                    "chat_history": lambda x: x.get("chat_history"),
-                    "input": lambda x: x["input"],
-                    "context": lambda x: x.get("context"),
-                }
-            )
-            | history_aware_retriever
-            | format_docs,
+            "chat_history": lambda x: x.get("chat_history", []),
+            "context": (lambda x: x["input"]) | dish_retriever | format_docs,
         }
         | prompt
         | llm.with_structured_output(DishList)
     )
     return chain
+
 
 # Function to format intermediate steps into a string for the ReAct prompt
 def format_agent_scratchpad(intermediate_steps):
@@ -54,6 +41,7 @@ def format_agent_scratchpad(intermediate_steps):
         scratchpad += f"\nAction: {action.tool}\nInput: {action.tool_input}\nObservation: {observation}\n"
     return scratchpad
 
+
 # Main function to run the script
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -63,4 +51,15 @@ if __name__ == "__main__":
     # Build and invoke the RAG chain
     rag_chain = build_recipe_rag()
     res = rag_chain.invoke(input={"input": "дай рецепт млинців"})
-    print(res)
+    chat_history = [("user", "дай рецепт млинців"), ("assistant", str(res))]
+    print("дай рецепт млинців:", res)
+
+    res = rag_chain.invoke(
+        input={"input": "нагадай рецепт ще раз", "chat_history": chat_history}
+    )
+    print("нагадай рецепт ще раз:", res)
+
+    res = rag_chain.invoke(
+        input={"input": "а тепер пельменів", "chat_history": chat_history}
+    )
+    print("а тепер пельменів (нема в базі):", res)
