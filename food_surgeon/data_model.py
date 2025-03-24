@@ -1,10 +1,9 @@
-
 from pydantic import BaseModel, Field
 
 
 # Define the Dish model to structure the response for a single dish
 class Dish(BaseModel):
-    """Always use this tool to structure your response to the user."""
+    """Use this tool only if the correct dish is found to structure recipe in response"""
 
     id: str = Field(description="Identifier of the dish from the retrieved data.")
     name: str = Field(
@@ -23,8 +22,9 @@ class Dish(BaseModel):
         description="You must always add your personal thoughts on recipe here."
     )
 
+
 # Define the DishList model to structure the response when multiple dishes are retrieved
 class DishList(BaseModel):
-    """Always use this tool to structure your response to the user if you have several dishes as output. Put empty list, if no relevant dish found"""
+    """Use this tool to structure your response to the user if you have several dishes as output."""
 
     dishes: list[Dish] = Field(description="List of dishes.")

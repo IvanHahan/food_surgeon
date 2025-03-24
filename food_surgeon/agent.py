@@ -17,17 +17,16 @@ def build_recipe_agent(use_togetherai=True):
     """Build the recipe agent."""
     if use_togetherai:
         llm = ChatOpenAI(
-                base_url="https://api.together.xyz/v1",
-                api_key=os.environ["TOGETHER_API_KEY"],
-                model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
-            )
+            base_url="https://api.together.xyz/v1",
+            api_key=os.environ["TOGETHER_API_KEY"],
+            model="meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        )
     else:
         llm = ChatOpenAI(model_name="gpt-3.5-turbo")
-    
+
     memory = MemorySaver()
 
     tools = [dish_retriever_tool]
-
 
     if use_togetherai:
         system_message = f"""
@@ -51,9 +50,14 @@ def build_recipe_agent(use_togetherai=True):
         )
     else:
         langgraph_agent_executor = create_react_agent(
-            llm, tools, prompt=system_message, checkpointer=memory, response_format=DishList
+            llm,
+            tools,
+            prompt=system_message,
+            checkpointer=memory,
+            response_format=DishList,
         )
     return langgraph_agent_executor
+
 
 # Must be used with togetherai
 def parse(output):
@@ -75,5 +79,15 @@ if __name__ == "__main__":
     # Build and invoke the recipe agent
     agent = build_recipe_agent()
     config = {"configurable": {"thread_id": "test-thread"}}
-    res = agent.invoke({"messages": [("user", "хочу пельменів")]}, config)
-    print(res["messages"][-1].content)
+
+    res = agent.invoke({"messages": [("user", "Дай рецепт панкейків")]}, config)
+    print("\n\nДай рецепт панкейків")
+    parsed = parse(res["messages"][-1].content)
+    print("Відповідь:", parsed if parsed else res["messages"][-1].content)
+
+    res = agent.invoke(
+        {"messages": [("user", "Cкільки в цих панкейках калорій")]}, config
+    )
+    print("\n\nCкільки в цих панкейках калорій")
+    parsed = parse(res["messages"][-1].content)
+    print("Відповідь:", parsed if parsed else res["messages"][-1].content)

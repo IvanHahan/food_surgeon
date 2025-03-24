@@ -1,4 +1,3 @@
-
 from langchain.tools import tool
 
 from food_surgeon.db import get_vector_db
@@ -15,7 +14,7 @@ def format_docs(docs):
 @tool
 def dish_retriever_tool(input):
     """
-    Retrieve dishes recipes from the database.
+    Use to retrieve dishes recipes from the database if needed.
     """
     dish_retriever = get_vector_db("dishes").as_retriever(search_kwargs={"k": 4})
     docs = dish_retriever.invoke(input)

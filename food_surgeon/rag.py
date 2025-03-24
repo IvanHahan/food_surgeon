@@ -31,17 +31,6 @@ def build_recipe_rag():
     return chain
 
 
-# Function to format intermediate steps into a string for the ReAct prompt
-def format_agent_scratchpad(intermediate_steps):
-    """Format intermediate steps into a string for the ReAct prompt."""
-    if not intermediate_steps:
-        return ""
-    scratchpad = ""
-    for action, observation in intermediate_steps:
-        scratchpad += f"\nAction: {action.tool}\nInput: {action.tool_input}\nObservation: {observation}\n"
-    return scratchpad
-
-
 # Main function to run the script
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -50,16 +39,11 @@ if __name__ == "__main__":
 
     # Build and invoke the RAG chain
     rag_chain = build_recipe_rag()
-    res = rag_chain.invoke(input={"input": "дай рецепт млинців"})
-    chat_history = [("user", "дай рецепт млинців"), ("assistant", str(res))]
-    print("дай рецепт млинців:", res)
+    res = rag_chain.invoke(input={"input": "Дай рецепт пельменів"})
+    chat_history = [("user", "дай рецепт пельменів"), ("assistant", str(res))]
+    print("\n\nдай рецепт пельменів (нема в базі):", res)
 
     res = rag_chain.invoke(
-        input={"input": "нагадай рецепт ще раз", "chat_history": chat_history}
+        input={"input": "а тепер млинців", "chat_history": chat_history}
     )
-    print("нагадай рецепт ще раз:", res)
-
-    res = rag_chain.invoke(
-        input={"input": "а тепер пельменів", "chat_history": chat_history}
-    )
-    print("а тепер пельменів (нема в базі):", res)
+    print("\n\nа тепер млинців:", res)
